@@ -1,13 +1,13 @@
 import cloudinary
 import cloudinary.uploader
 import cloudinary.api
+
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = 'secret-key'
 
-# IMPORTANT
 DEBUG = True
 
 ALLOWED_HOSTS = ['*']
@@ -26,6 +26,10 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+
+    # CLOUDINARY
+    'cloudinary',
+    'cloudinary_storage',
 
     'items',
 ]
@@ -89,6 +93,15 @@ STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
+# CLOUDINARY STORAGE
+CLOUDINARY_STORAGE = {
+    'CLOUD_NAME': 'YOUR_CLOUD_NAME',
+    'API_KEY': 'YOUR_API_KEY',
+    'API_SECRET': 'YOUR_API_SECRET',
+}
+
+DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
 
 # MEDIA FILES
 MEDIA_URL = '/media/'
