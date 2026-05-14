@@ -1,46 +1,351 @@
-from django.contrib import admin
-from django.urls import path
-from django.conf import settings
-from django.conf.urls.static import static
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib.auth import login, logout, authenticate
+from django.contrib.auth.decorators import login_required
+from django.contrib import messages
+from django.db.models import Q
 
-from items import views
+from .forms import RegisterForm, ItemForm
+from .models import Item, Message
 
-urlpatterns = [
-    path('admin/', admin.site.urls),
 
-    path('', views.home, name='home'),
+def home(request):
+    query = request.GET.get('q')
+    item_type = request.GET.get('type')
 
-    path('register/', views.register_view, name='register'),
-    path('login/', views.login_view, name='login'),
-    path('logout/', views.logout_view, name='logout'),
+    items = Item.objects.filter(status='active').order_by('-created_at')
 
-    path('dashboard/', views.dashboard, name='dashboard'),
+    if query:
+        items = items.filter(title__icontains=query)
 
-    path('lost/add/', views.add_lost_item, name='add_lost_item'),
-    path('found/add/', views.add_found_item, name='add_found_item'),
+    if item_type in ['lost', 'found']:
+        items = items.filter(item_type=item_type)
 
-    path('item/<int:pk>/', views.item_detail, name='item_detail'),
+    return render(request, 'home.html', {
+        'items': items,
+        'query': query,
+        'item_type': item_type,
+    })
 
-    path('item/<int:pk>/edit/', views.edit_item, name='edit_item'),
-    path('item/<int:pk>/delete/', views.delete_item, name='delete_item'),
 
-    path('item/<int:pk>/resolve/', views.mark_resolved, name='mark_resolved'),
-    path('item/<int:pk>/reopen/', views.reopen_item, name='reopen_item'),
+def item_detail(request, pk):
+    item = get_object_or_404(Item, pk=pk)
 
-    path('item/<int:pk>/message/', views.send_message, name='send_message'),
+    return render(request, 'item_detail.html', {
+        'item': item
+    })
 
-    path('inbox/', views.inbox, name='inbox'),
 
-    path(
-        'conversation/<int:item_pk>/<int:other_user_pk>/',
-        views.conversation,
-        name='conversation'
-    ),
-]
+def register_view(request):
+    form = RegisterForm(request.POST or None)
 
-# MEDIA FILES
-if settings.DEBUG:
-    urlpatterns += static(
-        settings.MEDIA_URL,
-        document_root=settings.MEDIA_ROOT
+    if form.is_valid():
+        user = form.save(commit=False)
+        user.set_password(form.cleaned_data['password'])
+        user.save()
+
+        login(request, user)
+
+        return redirect('dashboard')
+
+    return render(request, 'register.html', {
+        'form': form
+    })
+
+
+def login_view(request):
+    error = None
+
+    if request.method == 'POST':
+        username = request.POST.get('username')
+        password = request.POST.get('password')
+
+        user = authenticate(
+            request,
+            username=username,
+            password=password
+        )
+
+        if user:
+            login(request, user)
+            return redirect('dashboard')
+        else:
+            error = 'Invalid username or password.'
+
+    return render(request, 'login.html', {
+        'error': error
+    })
+
+
+def logout_view(request):
+    logout(request)
+    return redirect('home')
+
+
+@login_required
+def dashboard(request):
+    items = Item.objects.filter(
+        user=request.user
+    ).order_by('-created_at')
+
+    return render(request, 'dashboard.html', {
+        'items': items
+    })
+
+
+@login_required
+def add_lost_item(request):
+    form = ItemForm(
+        request.POST or None,
+        request.FILES or None
     )
+
+    if form.is_valid():
+        item = form.save(commit=False)
+
+        item.user = request.user
+        item.item_type = 'lost'
+
+        item.save()
+
+        messages.success(request, 'Lost item added successfully.')
+
+        return redirect('dashboard')
+
+    return render(request, 'item_form.html', {
+        'form': form,
+        'type': 'Lost'
+    })
+
+
+@login_required
+def add_found_item(request):
+    form = ItemForm(
+        request.POST or None,
+        request.FILES or None
+    )
+
+    if form.is_valid():
+        item = form.save(commit=False)
+
+        item.user = request.user
+        item.item_type = 'found'
+
+        item.save()
+
+        messages.success(request, 'Found item added successfully.')
+
+        return redirect('dashboard')
+
+    return render(request, 'item_form.html', {
+        'form': form,
+        'type': 'Found'
+    })
+
+
+@login_required
+def edit_item(request, pk):
+    item = get_object_or_404(
+        Item,
+        pk=pk,
+        user=request.user
+    )
+
+    form = ItemForm(
+        request.POST or None,
+        request.FILES or None,
+        instance=item
+    )
+
+    if form.is_valid():
+        form.save()
+
+        messages.success(request, 'Item updated successfully.')
+
+        return redirect('dashboard')
+
+    return render(request, 'item_form.html', {
+        'form': form,
+        'type': item.get_item_type_display(),
+        'edit': True,
+        'item': item,
+    })
+
+
+@login_required
+def delete_item(request, pk):
+    item = get_object_or_404(
+        Item,
+        pk=pk,
+        user=request.user
+    )
+
+    if request.method == 'POST':
+        item.delete()
+
+        messages.success(request, 'Item deleted successfully.')
+
+        return redirect('dashboard')
+
+    return render(request, 'confirm_delete.html', {
+        'item': item
+    })
+
+
+@login_required
+def mark_resolved(request, pk):
+    item = get_object_or_404(
+        Item,
+        pk=pk,
+        user=request.user
+    )
+
+    if request.method == 'POST':
+        item.status = 'resolved'
+        item.save()
+
+        messages.success(request, 'Item marked as resolved.')
+
+    return redirect('dashboard')
+
+
+@login_required
+def reopen_item(request, pk):
+    item = get_object_or_404(
+        Item,
+        pk=pk,
+        user=request.user
+    )
+
+    if request.method == 'POST':
+        item.status = 'active'
+        item.save()
+
+        messages.success(request, 'Item reopened.')
+
+    return redirect('dashboard')
+
+
+@login_required
+def send_message(request, pk):
+    item = get_object_or_404(Item, pk=pk)
+
+    if request.user == item.user:
+        messages.error(request, "You cannot message yourself.")
+        return redirect('item_detail', pk=pk)
+
+    if request.method == 'POST':
+        content = request.POST.get('content', '').strip()
+
+        if content:
+            Message.objects.create(
+                item=item,
+                sender=request.user,
+                recipient=item.user,
+                content=content,
+            )
+
+            messages.success(request, 'Message sent successfully.')
+
+            return redirect(
+                'conversation',
+                item_pk=item.pk,
+                other_user_pk=item.user.pk
+            )
+
+    return redirect('item_detail', pk=pk)
+
+
+@login_required
+def inbox(request):
+    user = request.user
+
+    all_messages = Message.objects.filter(
+        Q(sender=user) | Q(recipient=user)
+    ).select_related(
+        'item',
+        'sender',
+        'recipient'
+    ).order_by('-sent_at')
+
+    seen = set()
+
+    conversations = []
+
+    for msg in all_messages:
+        other_user = (
+            msg.recipient
+            if msg.sender == user
+            else msg.sender
+        )
+
+        key = (msg.item_id, other_user.pk)
+
+        if key not in seen:
+            seen.add(key)
+
+            unread_count = Message.objects.filter(
+                item=msg.item,
+                sender=other_user,
+                recipient=user,
+                is_read=False
+            ).count()
+
+            conversations.append({
+                'item': msg.item,
+                'other_user': other_user,
+                'last_message': msg,
+                'unread_count': unread_count,
+            })
+
+    return render(request, 'inbox.html', {
+        'conversations': conversations
+    })
+
+
+@login_required
+def conversation(request, item_pk, other_user_pk):
+    from django.contrib.auth.models import User
+
+    item = get_object_or_404(Item, pk=item_pk)
+
+    other_user = get_object_or_404(
+        User,
+        pk=other_user_pk
+    )
+
+    user = request.user
+
+    thread = Message.objects.filter(
+        item=item
+    ).filter(
+        Q(sender=user, recipient=other_user) |
+        Q(sender=other_user, recipient=user)
+    ).order_by('sent_at')
+
+    thread.filter(
+        recipient=user,
+        is_read=False
+    ).update(is_read=True)
+
+    if request.method == 'POST':
+        content = request.POST.get('content', '').strip()
+
+        if content:
+            Message.objects.create(
+                item=item,
+                sender=user,
+                recipient=other_user,
+                content=content,
+            )
+
+        return redirect(
+            'conversation',
+            item_pk=item_pk,
+            other_user_pk=other_user_pk
+        )
+
+    return render(request, 'conversation.html', {
+        'item': item,
+        'other_user': other_user,
+        'thread': thread,
+    })
