@@ -1,0 +1,81 @@
+{% extends 'base.html' %}
+{% block content %}
+
+<div class="mb-3">
+  <a href="{% url 'inbox' %}" class="text-muted text-decoration-none small">
+    <i class="bi bi-arrow-left me-1"></i>Back to Inbox
+  </a>
+</div>
+
+<div class="row justify-content-center">
+  <div class="col-md-8">
+    <!-- Header -->
+    <div class="card mb-3 p-3 d-flex flex-row align-items-center gap-3">
+      <div class="rounded-circle d-flex align-items-center justify-content-center"
+           style="width:44px;height:44px;background:#dbeafe;color:#1a56db;font-weight:700;font-size:1rem;flex-shrink:0;">
+        {{ other_user.username|first|upper }}
+      </div>
+      <div>
+        <p class="fw-bold mb-0">{{ other_user.username }}</p>
+        <p class="text-muted small mb-0">
+          Re:
+          <a href="{% url 'item_detail' item.pk %}" class="text-decoration-none">
+            <span class="badge-{{ item.item_type }} me-1">{{ item.get_item_type_display }}</span>
+            {{ item.title }}
+          </a>
+        </p>
+      </div>
+      {% if item.status == 'resolved' %}
+        <span class="badge-resolved ms-auto">Resolved</span>
+      {% endif %}
+    </div>
+
+    <!-- Thread -->
+    <div class="card p-3 mb-3" style="min-height:340px;max-height:480px;overflow-y:auto;" id="thread">
+      {% if thread %}
+        <div class="d-flex flex-column gap-3 p-2">
+          {% for msg in thread %}
+          <div class="d-flex {% if msg.sender == user %}justify-content-end{% endif %}">
+            <div>
+              {% if msg.sender != user %}
+                <p class="text-muted small mb-1 ms-2">{{ msg.sender.username }}</p>
+              {% endif %}
+              <div class="bubble {% if msg.sender == user %}bubble-sent{% else %}bubble-recv{% endif %}">
+                {{ msg.content }}
+              </div>
+              <p class="text-muted" style="font-size:0.72rem;margin-top:3px;{% if msg.sender == user %}text-align:right;{% else %}margin-left:8px;{% endif %}">
+                {{ msg.sent_at|date:"M d, g:i A" }}
+              </p>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="text-center text-muted py-5">
+          <i class="bi bi-chat-square-dots" style="font-size:2.5rem;"></i>
+          <p class="mt-2 mb-0">No messages yet. Say hello!</p>
+        </div>
+      {% endif %}
+    </div>
+
+    <!-- Reply form -->
+    <div class="card p-3">
+      <form method="post" class="d-flex gap-2 align-items-end">
+        {% csrf_token %}
+        <textarea name="content" class="form-control" rows="2" placeholder="Write a message…" required style="resize:none;"></textarea>
+        <button type="submit" class="btn btn-primary px-3" style="height:fit-content;">
+          <i class="bi bi-send-fill"></i>
+        </button>
+      </form>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  // Scroll to bottom of thread on load
+  const thread = document.getElementById('thread');
+  if (thread) thread.scrollTop = thread.scrollHeight;
+</script>
+
+{% endblock %}

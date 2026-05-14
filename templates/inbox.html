@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+{% block content %}
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h1 class="section-header mb-1"><i class="bi bi-chat-dots me-2"></i>Inbox</h1>
+    <p class="text-muted mb-0">Your conversations about lost &amp; found items.</p>
+  </div>
+</div>
+
+{% if conversations %}
+<div class="d-flex flex-column gap-3">
+  {% for c in conversations %}
+  <a href="{% url 'conversation' c.item.pk c.other_user.pk %}" class="text-decoration-none">
+    <div class="card p-3 d-flex flex-row align-items-center gap-3 {% if c.unread_count %}border-primary{% endif %}" style="transition:border 0.15s;">
+      <!-- Avatar -->
+      <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
+           style="width:48px;height:48px;background:#dbeafe;color:#1a56db;font-weight:700;font-size:1.1rem;">
+        {{ c.other_user.username|first|upper }}
+      </div>
+      <!-- Info -->
+      <div class="flex-grow-1 overflow-hidden">
+        <div class="d-flex align-items-center gap-2 mb-1">
+          <span class="fw-bold text-dark">{{ c.other_user.username }}</span>
+          <span class="badge-{{ c.item.item_type }} ms-1">{{ c.item.get_item_type_display }}</span>
+          {% if c.unread_count %}
+            <span class="ms-auto badge rounded-pill" style="background:#ef4444;color:#fff;font-size:0.7rem;padding:3px 8px;">
+              {{ c.unread_count }} new
+            </span>
+          {% endif %}
+        </div>
+        <p class="text-muted small mb-0 text-truncate">
+          <span class="text-muted fw-semibold me-1">Re: {{ c.item.title }}</span>
+          &mdash; {{ c.last_message.content|truncatechars:60 }}
+        </p>
+      </div>
+      <!-- Time -->
+      <div class="text-muted small flex-shrink-0">{{ c.last_message.sent_at|date:"M d" }}</div>
+    </div>
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<div class="text-center py-5">
+  <i class="bi bi-chat-square-dots text-muted" style="font-size:3rem;"></i>
+  <p class="text-muted mt-3 mb-0">No messages yet. Browse listings and reach out to someone!</p>
+  <a href="{% url 'home' %}" class="btn btn-primary mt-3">Browse Items</a>
+</div>
+{% endif %}
+
+{% endblock %}
